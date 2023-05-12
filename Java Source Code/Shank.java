@@ -1,12 +1,11 @@
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 /**
  * Takes a file as input and lexes, parses and interprets a Shank program
  * @author Kevin Meltzer
- * @version 1.9
+ * @version 2.0
  */
 public class Shank {
 	/**
@@ -22,7 +21,13 @@ public class Shank {
 		}
 		// Puts all lines from an input file into a arraylist
 		File arguments = new File(args[0]);
-		ArrayList<String> lines = new ArrayList<String>(Files.readAllLines(arguments.toPath()));
+		ArrayList<String> lines = null;
+		try {		
+			lines = new ArrayList<String>(Files.readAllLines(arguments.toPath()));
+		} catch (Exception E) {											// Catches when the file inputed is not found
+			System.out.println("File \"" + args[0] + "\" not found.");
+			System.exit(1);
+		}
 		ArrayList<Token> lexerResult = new ArrayList<Token>();
 		// Defines the lexer, parser and interpreter
 		Lexer lexer = new Lexer();
@@ -42,6 +47,9 @@ public class Shank {
 		try {
 			for(int i = 0; i < lines.size(); i++) {
 				lexerResult.addAll(lexer.lex(lines.get(i)));
+			}
+			for (int i = 0; i < lexer.lastIdentationLevel; i++) {
+				lexerResult.add(new Token(Token.state.DEDENT, " Dedent"));
 			}
 			try {
 				parser = new Parser(lexerResult);

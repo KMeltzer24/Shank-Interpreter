@@ -594,7 +594,7 @@ public class Interpreter {
 		}
 		int startInt = Integer.parseInt(start.toString());
 		int endInt = Integer.parseInt(end.toString());
-		varHash.put(((ForNode)statements.get(i)).getVar().toString(), start);
+								//varHash.put(((ForNode)statements.get(i)).getVar().toString(), start);
 		for (int x = startInt; x <= endInt; x++) {
 			varHash.put(((ForNode)statements.get(i)).getVar().toString(), new IntDataType(x));
 			InterpretBlock(((ForNode)statements.get(i)).getList(), varHash);

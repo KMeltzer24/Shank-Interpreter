@@ -61,17 +61,6 @@ public class read extends BuiltInFunctionNode {
 			} catch (Exception E){
 				throw new Exception("Not a valid read input");
 			}
-			if (this.dataTypeList.get(i) instanceof IntDataType) {
-				this.dataTypeList.set(i, new IntDataType(Integer.parseInt(this.dataTypeList.get(i).toString())));
-			} else if (this.dataTypeList.get(i) instanceof FloatDataType) {
-				this.dataTypeList.set(i, new FloatDataType(Float.parseFloat(this.dataTypeList.get(i).toString())));
-			} else if (this.dataTypeList.get(i) instanceof StringDataType) {
-				this.dataTypeList.set(i, new StringDataType(this.dataTypeList.get(i).toString()));
-			} else if (this.dataTypeList.get(i) instanceof CharDataType) { 
-				this.dataTypeList.set(i, new CharDataType(this.dataTypeList.get(i).toString().charAt(0)));
-			} else {
-				this.dataTypeList.set(i, new BooleanDataType(Boolean.parseBoolean(this.dataTypeList.get(i).toString())));
-			}
 		}
 	}
 	

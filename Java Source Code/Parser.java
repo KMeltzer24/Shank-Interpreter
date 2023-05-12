@@ -3,7 +3,7 @@ import java.util.ArrayList;
 /**
  * A parser which creates a AST out of tokens from a Shank program
  * @author Kevin Meltzer
- * @version 1.9
+ * @version 2.0
  */
 public class Parser {
 	
@@ -160,14 +160,7 @@ public class Parser {
 	public ArrayList<FunctionNode> functionDefinitions() throws Exception {
 		ArrayList<FunctionNode> functionNodeList = new ArrayList<FunctionNode>();
 		// Remove all endofline tokens until a not endofline token is found
-		while (!(matchAndRemove("ENDOFLINE") == null)) {
-			if (0 == list.size()) {
-				break;
-			}
-		}
-		if (0 == list.size()) {
-			return null;
-		}
+		removeEndOfLines();
 		// If the token is not defined, return null
 		// if not, while the token is defined,  call FunctionDefinition and add a function
 		// to the list
@@ -176,17 +169,13 @@ public class Parser {
 		}
 		while(list.get(0).getState().equals(Token.state.DEFINE)) {
 			functionNodeList.add(functionDefinition());
-			if (0 == list.size()) {
+			if (list.size() == 0) {
 				break;
 			}
-			while (!(matchAndRemove("ENDOFLINE") == null)) {
-				if (0 == list.size()) {
-					break;
-				}
-			}
-			if (0 == list.size()) {
-				break;
-			}
+			removeEndOfLines();
+		}
+		if (0 != list.size()) {
+			throw new Exception("Invalid dedent");
 		}
 		return functionNodeList;
 	}
@@ -207,7 +196,7 @@ public class Parser {
 		ArrayList<Boolean> varList = new ArrayList<Boolean>();
 		
 		
-		while (!(matchAndRemove("ENDOFLINE") == null));	// removes end of line tokens to remove empty lines from the list 
+		removeEndOfLines();
 		nullTester(matchAndRemove("DEFINE"));
 		Token functName = matchAndRemove("IDENTIFIER");
 		nullTester(functName);
@@ -227,137 +216,125 @@ public class Parser {
 					names.add(ident);
 				} while (!(matchAndRemove("COMMA") == null));
 				nullTester(matchAndRemove("COLON"));
-				Token dataType = matchAndRemove("INTEGER");
-				if (dataType == null) {
-					dataType = matchAndRemove("REAL");
-					if (dataType == null) {
-						dataType = matchAndRemove("STRING");
-						if (dataType == null) {
-							dataType = matchAndRemove("CHAR");
-							if (dataType == null) {
-								dataType = matchAndRemove("BOOLEAN");
-								while (!(names.isEmpty())) {
-									param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.BOOLEAN, new BoolNode(), varList.get(0))); 
-									names.remove(0);
-									varList.remove(0);
-								}
-							} else {
-								while (!(names.isEmpty())) {
-									param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.CHAR, new CharNode(), varList.get(0))); 
-									names.remove(0);
-									varList.remove(0);
-								}
-							}
-						} else {
-							while (!(names.isEmpty())) {
-								param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.STRING, new StringNode(), varList.get(0))); 
-								names.remove(0);
-								varList.remove(0);
-							}
+				Token dataType = null;
+				switch (list.get(0).getState()) {
+					case INTEGER:
+						dataType = matchAndRemove("INTEGER");
+						while (!(names.isEmpty())) {
+							param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.INTEGER, new IntegerNode(), varList.get(0)));
+							names.remove(0);
+							varList.remove(0);
 						}
-					} else {
+						break;
+					case REAL:
+						dataType = matchAndRemove("REAL");
 						while (!(names.isEmpty())) {
 							param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.REAL, new FloatNode(), varList.get(0))); 
 							names.remove(0);
 							varList.remove(0);
 						}
-					}
-				} else {
-					while (!(names.isEmpty())) {
-						param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.INTEGER, new IntegerNode(), varList.get(0)));
-						names.remove(0);
-						varList.remove(0);
-					}
+						break;
+					case STRING:
+						dataType = matchAndRemove("STRING");
+						while (!(names.isEmpty())) {
+							param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.STRING, new StringNode(), varList.get(0))); 
+							names.remove(0);
+							varList.remove(0);
+						}
+						break;
+					case CHAR:
+						dataType = matchAndRemove("CHAR");
+						while (!(names.isEmpty())) {
+							param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.CHAR, new CharNode(), varList.get(0))); 
+							names.remove(0);
+							varList.remove(0);
+						}
+						break;
+					case BOOLEAN:
+						dataType = matchAndRemove("BOOLEAN");
+						while (!(names.isEmpty())) {
+							param.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.BOOLEAN, new BoolNode(), varList.get(0))); 
+							names.remove(0);
+							varList.remove(0);
+						}
+						break;
+
 				}
 				nullTester(dataType);
 			} while (!(matchAndRemove("SEMICOLON") == null));
 			nullTester(matchAndRemove("RPAREN"));
 		}
-		emptyLineCheck();
-		
+		removeEndOfLines();
 		// If this function has constants, it gets the constants and puts them into a list
-		if (!(matchAndRemove("CONSTANTS") == null)) {
-			emptyLineCheck();
+		while (!(matchAndRemove("CONSTANTS") == null)) {
 			localVars.addAll(constants());
+			removeEndOfLines();
 		}
 		// If this function has variables, it gets the variables and puts them into a list
-		if (!(matchAndRemove("VARIABLES") == null)) {
-			emptyLineCheck();
+		while (!(matchAndRemove("VARIABLES") == null)) {
 			localVars.addAll(variables());
+			removeEndOfLines();
 		}
 		return new FunctionNode(functName.toString(), param, localVars, statements());
 	}
 	
 	/**
-	 * Gets the constants and puts them into a list
-	 * @return An arrayList of variable nodes
+	 * Gets a variable node of a constant
+	 * @return A constant variable node
 	 * @throws Exception
 	 */
 	public ArrayList<VariableNode> constants() throws Exception {
-		ArrayList<VariableNode> constants = new ArrayList<VariableNode>();
-		Token ident = matchAndRemove("IDENTIFIER");
-		nullTester(ident);
-		// while there is more constants, call processConstants and adds it to the list
-		while (!(ident == null)) {
-			constants.add(processConstants(ident));
-			while (!(matchAndRemove("ENDOFLINE") == null));
-			ident = matchAndRemove("IDENTIFIER");
-		}
+		ArrayList<VariableNode> constants = new ArrayList<>();
+		do {
+			Token ident = matchAndRemove("IDENTIFIER");
+			nullTester(ident);
+			String name = ident.toString();
+			nullTester(matchAndRemove("EQUAL"));
+			Token token = matchAndRemove("NUMBER");
+			if (token != null) {
+				Node numNode;
+				String numOnly;
+				nullTester(token);
+				// If the constant is a real, creates a variable node with a real inside and returns it
+				if (token.toString().contains(".")) {
+					numOnly = token.toString().replaceAll("[^\\d.]", ""); 
+					numNode = new FloatNode(Float.parseFloat(numOnly));				
+					constants.add(new VariableNode(name, VariableNode.dataType.REAL, numNode, true));
+				// If the constant is a Int, creates a variable node with a int inside and returns it	
+				} else {
+					numOnly = token.toString().replaceAll("[^0-9]", "");
+					numNode = new IntegerNode(Integer.parseInt(numOnly));	
+					constants.add(new VariableNode(name, VariableNode.dataType.INTEGER, numNode, true));
+				}
+			} else {
+				switch (list.get(0).getState()) {
+					case TRUE:
+						token = matchAndRemove("TRUE");
+						constants.add(new VariableNode(name, VariableNode.dataType.BOOLEAN, new BoolNode(true), true));
+						break;
+					case FALSE:
+						token = matchAndRemove("FALSE");
+						constants.add(new VariableNode(name, VariableNode.dataType.BOOLEAN, new BoolNode(false), true));
+						break;
+					case STRINGCONTENTS:
+						token = matchAndRemove("STRINGCONTENTS");
+						constants.add(new VariableNode(name, VariableNode.dataType.STRING, new StringNode(token.toString()), true));
+						break;
+					case CHARCONTENTS:
+						token = matchAndRemove("CHARCONTENTS");
+						constants.add(new VariableNode(name, VariableNode.dataType.CHAR, new CharNode(token.toString().charAt(0)), true));
+						break;
+				}
+				nullTester(token);
+			}
+		} while (matchAndRemove("COMMA") != null);
+		nullTester(matchAndRemove("ENDOFLINE"));
 		return constants;
 	}
 	
 	/**
-	 * Gets a variable node of a constant
-	 * @param indent Constant name
-	 * @return A constant variable node
-	 * @throws Exception
-	 */
-	public VariableNode processConstants(Token indent) throws Exception {
-		String name = indent.toString();
-		nullTester(matchAndRemove("EQUAL"));
-		Token token = matchAndRemove("NUMBER");
-		if (token != null) {
-			Node numNode;
-			String numOnly;
-			nullTester(token);
-			// If the constant is a real, creates a variable node with a real inside and returns it
-			if (token.toString().contains(".")) {
-				numOnly = token.toString().replaceAll("[^\\d.]", ""); 
-				numNode = new FloatNode(Float.parseFloat(numOnly));				
-				nullTester(matchAndRemove("ENDOFLINE"));
-				return new VariableNode(name, VariableNode.dataType.REAL, numNode, true);
-			// If the constant is a Int, creates a variable node with a int inside and returns it	
-			} else {
-				numOnly = token.toString().replaceAll("[^0-9]", "");
-				numNode = new IntegerNode(Integer.parseInt(numOnly));	
-				nullTester(matchAndRemove("ENDOFLINE"));
-				return new VariableNode(name, VariableNode.dataType.INTEGER, numNode, true);
-			}
-		}
-		token = matchAndRemove("TRUE");
-		if (token != null) {
-			nullTester(matchAndRemove("ENDOFLINE"));
-			return new VariableNode(name, VariableNode.dataType.BOOLEAN, new BoolNode(true), true);
-		}
-		token = matchAndRemove("FALSE");
-		if (token != null) {
-			nullTester(matchAndRemove("ENDOFLINE"));
-			return new VariableNode(name, VariableNode.dataType.BOOLEAN, new BoolNode(false), true);
-		}
-		token = matchAndRemove("STRINGCONTENTS");
-		if (token != null) {
-			nullTester(matchAndRemove("ENDOFLINE"));
-			return new VariableNode(name, VariableNode.dataType.STRING, new StringNode(token.toString()), true);
-		}
-		token = matchAndRemove("CHARCONTENTS");
-		nullTester(matchAndRemove("ENDOFLINE"));
-		return new VariableNode(name, VariableNode.dataType.CHAR, new CharNode(token.toString().charAt(0)), true);
-	}
-	
-	
-	/**
 	 * Gets the variables and puts them in a list of variable nodes
-	 * @return A ArrayList of variable nodes
+	 * @return An ArrayList of variable nodes
 	 * @throws Exception
 	 */
 	public ArrayList<VariableNode> variables() throws Exception {
@@ -367,57 +344,52 @@ public class Parser {
 		ident = matchAndRemove("IDENTIFIER");
 		
 		// Gets variables names and puts them into a list
-		do {
-			while (!(matchAndRemove("COMMA") == null)) {
-				nullTester(ident);
-				names.add(ident);
-				ident = matchAndRemove("IDENTIFIER");
-			}
+		while (!(matchAndRemove("COMMA") == null)) {
 			nullTester(ident);
 			names.add(ident);
-			nullTester(matchAndRemove("COLON"));
-			Token dataType = matchAndRemove("INTEGER");
-			
-			if (dataType == null) {
-				dataType = matchAndRemove("REAL");
-				if (dataType == null) {
-					dataType = matchAndRemove("STRING");
-					if (dataType == null) {
-						dataType = matchAndRemove("CHAR");
-						if (dataType == null) {
-							dataType = matchAndRemove("BOOLEAN");
-							while (!(names.isEmpty())) {
-								variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.BOOLEAN, new BoolNode(), false));
-								names.remove(0);
-							}
-						} else {
-							while (!(names.isEmpty())) {
-								variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.CHAR, new CharNode(), false));
-								names.remove(0);
-							}
-						}
-					} else {
-						while (!(names.isEmpty())) {
-							variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.STRING, new StringNode(), false));
-							names.remove(0);
-						}
-					}
-				} else {
-					while (!(names.isEmpty())) {
-						variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.REAL, new FloatNode(), false));
-						names.remove(0);
-					}
-				}
-			} else {
+			ident = matchAndRemove("IDENTIFIER");
+		}
+		nullTester(ident);
+		names.add(ident);
+		nullTester(matchAndRemove("COLON"));
+		Token dataType = null;
+		switch (list.get(0).getState()) {
+			case INTEGER:
+				dataType = matchAndRemove("INTEGER");
 				while (!(names.isEmpty())) {
 					variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.INTEGER, new IntegerNode(), false));
 					names.remove(0);
 				}
-			}
-			nullTester(dataType);
-			emptyLineCheck();
-			ident = matchAndRemove("IDENTIFIER");
-		} while (!(ident == null));
+				break;
+			case REAL:
+				dataType = matchAndRemove("REAL");
+				while (!(names.isEmpty())) {
+					variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.REAL, new FloatNode(), false));
+					names.remove(0);
+				}
+				break;
+			case STRING:
+				dataType = matchAndRemove("STRING");
+				while (!(names.isEmpty())) {
+					variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.STRING, new StringNode(), false));
+					names.remove(0);
+				}
+				break;
+			case CHAR:
+				dataType = matchAndRemove("CHAR");
+				while (!(names.isEmpty())) {
+					variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.CHAR, new CharNode(), false));
+					names.remove(0);
+				}
+				break;
+			case BOOLEAN:
+				dataType = matchAndRemove("BOOLEAN");
+				while (!(names.isEmpty())) {
+					variables.add(new VariableNode(names.get(0).toString(), VariableNode.dataType.BOOLEAN, new BoolNode(), false));
+					names.remove(0);
+				}
+				break;
+		}
 		return variables;
 	}
 	
@@ -427,23 +399,16 @@ public class Parser {
 	 * @throws Exception
 	 */
 	public ArrayList<StatementNode> statements() throws Exception {
-		while (!(matchAndRemove("ENDOFLINE") == null)); 
-		nullTester(matchAndRemove("BEGIN"));
-		emptyLineCheck();
+		removeEndOfLines();
+		nullTester(matchAndRemove("INDENT"));
 		ArrayList<StatementNode> StatementNodeList = new ArrayList<StatementNode>();
-		
-		if (!(list.get(0).getState().equals(Token.state.IDENTIFIER) || list.get(0).getState().equals(Token.state.WHILE) || list.get(0).getState().equals(Token.state.IF) || list.get(0).getState().equals(Token.state.FOR) || list.get(0).getState().equals(Token.state.REPEAT))) {
-			nullTester(matchAndRemove("END"));
-			return null;
-		}
 		// Add new statement nodes to a list if the next token
 		// is an identifier, or a reserved word
 		while(list.get(0).getState().equals(Token.state.IDENTIFIER) || list.get(0).getState().equals(Token.state.WHILE) || list.get(0).getState().equals(Token.state.IF) || list.get(0).getState().equals(Token.state.FOR) || list.get(0).getState().equals(Token.state.REPEAT)) {
 			StatementNodeList.add(statement());
-			while (!(matchAndRemove("ENDOFLINE") == null)); 
+			removeEndOfLines();
 		}
-		nullTester(matchAndRemove("END"));
-		nullTester(matchAndRemove("ENDOFLINE"));
+		nullTester(matchAndRemove("DEDENT"));
 		return StatementNodeList;
 	}
 	
@@ -559,7 +524,6 @@ public class Parser {
 	 * @throws Exception 
 	 */
 	public IfNode If() throws Exception {
-		while (!(matchAndRemove("ENDOFLINE") == null));
 		if (matchAndRemove("ELSE") != null) {
 			return new ElseNode(statements());
 		}
@@ -599,7 +563,7 @@ public class Parser {
 		}
 		nullTester(matchAndRemove("ENDOFLINE"));
 		ArrayList<StatementNode> statements = statements();
-		while (!(matchAndRemove("ENDOFLINE") == null));
+		removeEndOfLines();
 		nullTester(matchAndRemove("UNTIL"));
 		BooleanExpressionNode booleanExp = (BooleanExpressionNode)expression();
 		nullTester(matchAndRemove("ENDOFLINE"));
@@ -707,6 +671,9 @@ public class Parser {
 	 */
 	public void nullTester(Token token) throws Exception {
 		if (token == null) {
+			System.out.println(list.get(0));
+			System.out.println(list.get(1));
+			System.out.println(list.get(2));
 			throw new Exception("Not valid syntax");
 		}
 	}
@@ -723,8 +690,7 @@ public class Parser {
 	 * Removes a empty line token and checks for empty lines in the file
 	 * @throws Exception
 	 */
-	public void emptyLineCheck() throws Exception {
-		nullTester(matchAndRemove("ENDOFLINE"));
+	public void removeEndOfLines() throws Exception {
 		while (!(matchAndRemove("ENDOFLINE") == null));
 	}
 }

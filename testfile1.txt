@@ -1,0 +1,46 @@
+{ Welcome to the test program!!!
+ This test program demonstrates some of the capabilities of Shank!
+}
+define start () 
+constants trueBool = true, pi = 3.14159265
+variables int1, a, b, sum : integer
+variables ch : character
+variables str1, str2, resStr : string
+variables bool : boolean
+	int1 := 0
+	for int1 from 3 to 5
+		write "hello"
+	if trueBool then
+		bool := 1+2<2
+		write bool
+	ch := 'a'
+	str1 := "b"
+	read var str2
+	str1 := ch + str2 + str1
+	write str1
+	write 'X'
+	
+	str1 := "test123"
+	Left str1, 2, var resStr
+	write resStr
+	Substring str1, 2, 4, var resStr
+	write resStr
+	Right str1, 2, var resStr
+	write resStr
+
+	read var a, var b
+	addRecursively a, b, var sum
+	write "The sum of these two integers is"
+	write sum
+
+{Adds two integers recursively}
+define addRecursively (x,y : integer; var sum : integer)
+variables yMinusOne, xPlusOne, newSum : integer
+	if y = 0 then
+		sum := x
+	else
+		xPlusOne := x + 1
+		yMinusOne := y - 1
+		addRecursively xPlusOne, yMinusOne, var newSum
+		sum := newSum
+

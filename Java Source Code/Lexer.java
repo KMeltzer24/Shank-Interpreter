@@ -4,10 +4,15 @@ import java.util.HashMap;
 /**
  * Takes in a Shank program separates it into tokens
  * @author Kevin Meltzer
- * @version 1.7
+ * @version 2.0
  */
 public class Lexer { 
 	
+	// Keeps track of the indentation level of the previous line
+	private boolean inComment = false;
+	// Keeps track of the indentation level of the previous line
+	public int lastIdentationLevel = 0;
+
 	/**
 	 * Takes in a Shank program separates it into tokens
 	 * @param str A line of a Shank program
@@ -15,9 +20,6 @@ public class Lexer {
 	 * @throws Exception
 	 */
 	public ArrayList<Token> lex(String str) throws Exception {
-		
-		// trims off leading and trailing spaces
-		str = str.trim();
 		
 		// creates the ArrayList which will be returned
 		ArrayList<Token> tokenList = new ArrayList<Token>();
@@ -37,8 +39,6 @@ public class Lexer {
 		HashMap<String, Token.state> resWords = new HashMap<String, Token.state>();
 		resWords.put("integer", Token.state.INTEGER);
 		resWords.put("real", Token.state.REAL);
-		resWords.put("begin", Token.state.BEGIN);
-		resWords.put("end", Token.state.END);
 		resWords.put("variables", Token.state.VARIABLES);
 		resWords.put("constants", Token.state.CONSTANTS);
 		resWords.put("define", Token.state.DEFINE);
@@ -61,31 +61,94 @@ public class Lexer {
 		resWords.put("boolean", Token.state.BOOLEAN);
 		
 		// Options for valid characters
-		String options = ".+-*/();:=,<>'\"";
-		
+		String options = ".+-*/();:=,<>'\"{}";
+		int commIndex = 0;
+
 		// If the input string is empty create a token with the value of EndOfLine
 		if (str.length() == 0) { 
 			tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));
 			return tokenList;
+		// If currently inside of a multiline comment, go into comment mode
+		} else if (inComment == true) {
+			commIndex = 0;
+			while (!(arr[commIndex].equals("}"))) {		
+				commIndex++;
+				if (commIndex == str.length()) {
+					tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));
+					return tokenList;
+				}
+			}
+			inComment = false;
+
+			// If the comment is the last character of a line,
+			// add a endofline token to the list
+			if (commIndex == str.length()-1) {
+				tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));
+			}
+			commIndex++;
 		}
-	
+
+		// Creates dedent tokens if the line starts at indentation level 0
+		if (!(arr[0].equals(" ") || arr[0].equals("\t")) && lastIdentationLevel != 0) { 
+			int prevLvl = lastIdentationLevel;
+			for (int i = 0; i < prevLvl; i++) {
+				tokenList.add(new Token(Token.state.DEDENT, " Dedent"));
+				lastIdentationLevel--;
+			}
+		}
+
 		// Iterates through the array with the contents of the input string
-		for (int i = 0; i < str.length(); i++) {
+		for (int i = commIndex; i < str.length(); i++) {
 			Token currentToken = new Token();
 			x=i-1;
-			
-			// checks if the current value of the array is a space
-			if (arr[i].equals(" ")) {
+
+			// checks if the current value of the array is a space or tab
+			if (arr[i].equals(" ") || arr[i].equals("\t")) {
+				// Checks indents/"empty" lines
+				if (tokenList.isEmpty()) {
+					// if line is "empty", returns a end of line token
+					int emptyChkInt = 0;
+					while (arr[emptyChkInt].equals(" ") || arr[emptyChkInt].equals("\t")) {
+						emptyChkInt++;
+						if (emptyChkInt == str.length()) {
+							tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));
+							return tokenList;
+						}
+					}
+					
+					// counts the number of indents in a line
+					int spaces = 0;
+					int tabs = 0;
+					while (arr[i].equals(" ") || arr[i].equals("\t")) {
+						if (arr[i].equals(" ")) spaces++; else tabs++;
+						i++;
+					}
+					i--;
+					tabs += spaces/4;
+					tabs -= lastIdentationLevel; 
+					// if the indentation level is less than the previous line, output dedent tokens
+					if (tabs < 0) {
+						for (int p = 0; p < tabs*-1; p++) {
+							tokenList.add(new Token(Token.state.DEDENT, " Dedent"));
+							lastIdentationLevel--;
+						}
+					// if the indentation level is greater than the previous line, output indent tokens
+					} else {
+						for (int p = 0; p < tabs; p++) {
+							tokenList.add(new Token(Token.state.INDENT, " Indent"));
+							lastIdentationLevel++;
+						}
+					}
 				// gets the next character that is not a space
-				if (value.length() != 0) {								
-					while (arr[i].equals(" ")) {
+				} else if (value.length() != 0) {								
+					while (arr[i].equals(" ") || arr[i].equals("\t")) {
 						i++;
 					}
 					// If there is a space between 2 numbers an exception is thrown
 					if (Character.isDigit(arr[i].charAt(0)) || arr[i].equals(".")) {
 						throw new Exception("Invalid space between 2 numbers");
 					}
-					i = i-1;
+					i--;
 				}	
 			} else {
 				// Checks if the character in the array is a valid character and sets the corresponding state
@@ -105,6 +168,10 @@ public class Lexer {
 						currentToken.setState(Token.state.LPAREN);
 					} else if (arr[i].equals(")")) {
 						currentToken.setState(Token.state.RPAREN);
+					} else if (arr[i].equals("{")) {
+						currentToken.setState(Token.state.LCBRACK);
+					} else if (arr[i].equals("}")) {
+						currentToken.setState(Token.state.RCBRACK);
 					} else if (arr[i].equals(",")) {
 						currentToken.setState(Token.state.COMMA);
 					} else if (arr[i].equals("=")) {
@@ -383,28 +450,8 @@ public class Lexer {
 								// if this parenthesis sign is in a correct mathematical position
 								// and if it is then creates a token and adds it to a arrayList		
 								// and adds one to the count of left parentheses
-								// If the next character after the parentheses is a star,
-								// it iterates through the array until it finds a right parenthesis
-								// follow by a star to ignore comments
 							case LPAREN:
-								if (i == str.length()-1) {
-									throw new Exception("Invalid left parenthesis placement");
-								} else if ((arr[i+1].equals("*") && value.length() != 0) || arr[i+1].equals("*")) {
-									// increment i until the comment ends
-									while (!(arr[i].equals("*") && arr[i+1].equals(")"))) {		
-										i++;
-									}
-									i++;
-									// If the comment is the last character of a line,
-									// add a endofline token to the lsit
-									if (value.length() != 0 && i == str.length()-1) {
-										tokenList.add(new Token(Token.state.NUMBER,value ));
-										tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));
-									} else if (i == str.length()-1) {
-										tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));	
-									}
-									break;
-								} else if (value.length() != 0) {
+								if (i == str.length()-1 || value.length() != 0) {
 									throw new Exception("Invalid left parenthesis placement");
 								} else {
 									tokenList.add(new Token(Token.state.LPAREN,arr[i]));
@@ -427,7 +474,7 @@ public class Lexer {
 									x--;
 								}
 								if (arr[x].equals("+") || arr[x].equals("-") || arr[x].equals("*") || arr[x].equals("/")) {
-									throw new Exception("Not a valid input");
+									throw new Exception("Not a valid mathematical statment");
 								} else if(value.length() != 0) {
 									tokenList.add(new Token(Token.state.NUMBER,value ));
 									value = "";
@@ -438,98 +485,125 @@ public class Lexer {
 									tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));	
 								}
 								break;
+
+							// if the current character is a left curly bracket, it enters comment mode
+							// and disregards all tokens until a right curly bracket is reached
+							case LCBRACK:	
+								while (!(arr[i].equals("}"))) {		
+									i++;
+									if (i == str.length()) {
+										inComment = true;
+										i--;
+										break;
+									}
+								}
+
+								// If the comment is the last character of a line,
+								// add a endofline token to the list
+								if (value.length() != 0 && i == str.length()-1) {
+									tokenList.add(new Token(Token.state.NUMBER,value ));
+									tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));
+								} else if (i == str.length()-1) {
+									tokenList.add(new Token(Token.state.ENDOFLINE, " EndOfLine\n"));	
+								}
+								break;
+
+							// if the current character is a right curly bracket, it throws
+							// an exception because right curley brackets are invalid except for ending comments
+							case RCBRACK:	
+								throw new Exception("Invalid right curly bracket placement");
+
+							// if the current character is a colon, it adds it to a arrayList	
+							case COLON: 
+								tokenList.add(new Token(Token.state.COLON,arr[i]));
+								break;
 							
-								// if the current character is a colon, it adds it to a arrayList	
-								case COLON: 
-									tokenList.add(new Token(Token.state.COLON,arr[i]));
-									break;
+							// if the current character is a semicolon, it adds it to a arrayList	
+							case SEMICOLON:
+								tokenList.add(new Token(Token.state.SEMICOLON,arr[i]));
+								break;
+							
+							// if the current character is an equal sign, it adds it to a arrayList		
+							case EQUAL:
+								if (value.length() != 0) {
+									tokenList.add(new Token(Token.state.NUMBER,value));
+									tokenList.add(new Token(Token.state.EQUAL,arr[i]));
+									value = "";
+								} else {
+									tokenList.add(new Token(Token.state.EQUAL,arr[i]));
+								}
+								break;
 								
-								// if the current character is a semicolon, it adds it to a arrayList	
-								case SEMICOLON:
-									tokenList.add(new Token(Token.state.SEMICOLON,arr[i]));
-									break;
-								
-								// if the current character is an equal sign, it adds it to a arrayList		
-								case EQUAL:
-									if (value.length() != 0) {
-										tokenList.add(new Token(Token.state.NUMBER,value));
-										tokenList.add(new Token(Token.state.EQUAL,arr[i]));
-										value = "";
-									} else {
-										tokenList.add(new Token(Token.state.EQUAL,arr[i]));
-									}
-									break;
-									
-								// if the current character is a comma, it adds it to a arrayList		
-								case COMMA:
-									if (value.length() != 0) {
-										tokenList.add(new Token(Token.state.NUMBER,value));
-										tokenList.add(new Token(Token.state.COMMA,arr[i]));
-										value = "";
-									} else {
-										tokenList.add(new Token(Token.state.COMMA,arr[i]));
-									}
-									break;
-								
-								// if the current character is an assignment sign, it adds it to a arrayList
-								case ASSIGNMENT:
-									tokenList.add(new Token(Token.state.ASSIGNMENT,":="));
-									break;
-								
-								// if the current character is an assignment sign, it adds it to a arrayList
-								case GREATER:
-									if (value.length() != 0) {
-										tokenList.add(new Token(Token.state.NUMBER,value));
-										tokenList.add(new Token(Token.state.GREATER,">"));
-										value = "";
-									} else {
-										tokenList.add(new Token(Token.state.GREATER,">"));
-									}
-									break;	
-								
-								// if the current character is an assignment sign, it adds it to a arrayList
-								case LESS:
-									if (value.length() != 0) {
-										tokenList.add(new Token(Token.state.NUMBER,value));
-										tokenList.add(new Token(Token.state.LESS,"<"));
-										value = "";
-									} else {
-										tokenList.add(new Token(Token.state.LESS,"<"));
-									}
-									break;
-								
-								// if the current character is an assignment sign, it adds it to a arrayList
-								case GREATEROREQUAL:
-									if (value.length() != 0) {
-										tokenList.add(new Token(Token.state.NUMBER,value));
-										tokenList.add(new Token(Token.state.GREATEROREQUAL,">="));
-										value = "";
-									} else {
-										tokenList.add(new Token(Token.state.GREATEROREQUAL,">="));
-									}
-									break;
-								
-								// if the current character is an assignment sign, it adds it to a arrayList
-								case LESSOREQUAL:
-									if (value.length() != 0) {
-										tokenList.add(new Token(Token.state.NUMBER,value));
-										tokenList.add(new Token(Token.state.LESSOREQUAL,"<="));
-										value = "";
-									} else {
-										tokenList.add(new Token(Token.state.LESSOREQUAL,"<="));
-									}
-									break;
-								
-								// if the current character is an assignment sign, it adds it to a arrayList
-								case NOTEQUAL:
-									if (value.length() != 0) {
-										tokenList.add(new Token(Token.state.NUMBER,value));
-										tokenList.add(new Token(Token.state.NOTEQUAL,"<>"));
-										value = "";
-									} else {
-										tokenList.add(new Token(Token.state.NOTEQUAL,"<>"));
-									}
-									break;
+							// if the current character is a comma, it adds it to a arrayList		
+							case COMMA:
+								if (value.length() != 0) {
+									tokenList.add(new Token(Token.state.NUMBER,value));
+									tokenList.add(new Token(Token.state.COMMA,arr[i]));
+									value = "";
+								} else {
+									tokenList.add(new Token(Token.state.COMMA,arr[i]));
+								}
+								break;
+							
+							// if the current character is an assignment sign, it adds it to a arrayList
+							case ASSIGNMENT:
+								tokenList.add(new Token(Token.state.ASSIGNMENT,":="));
+								break;
+							
+							// if the current character is an assignment sign, it adds it to a arrayList
+							case GREATER:
+								if (value.length() != 0) {
+									tokenList.add(new Token(Token.state.NUMBER,value));
+									tokenList.add(new Token(Token.state.GREATER,">"));
+									value = "";
+								} else {
+									tokenList.add(new Token(Token.state.GREATER,">"));
+								}
+								break;	
+							
+							// if the current character is an assignment sign, it adds it to a arrayList
+							case LESS:
+								if (value.length() != 0) {
+									tokenList.add(new Token(Token.state.NUMBER,value));
+									tokenList.add(new Token(Token.state.LESS,"<"));
+									value = "";
+								} else {
+									tokenList.add(new Token(Token.state.LESS,"<"));
+								}
+								break;
+							
+							// if the current character is an assignment sign, it adds it to a arrayList
+							case GREATEROREQUAL:
+								if (value.length() != 0) {
+									tokenList.add(new Token(Token.state.NUMBER,value));
+									tokenList.add(new Token(Token.state.GREATEROREQUAL,">="));
+									value = "";
+								} else {
+									tokenList.add(new Token(Token.state.GREATEROREQUAL,">="));
+								}
+								break;
+							
+							// if the current character is an assignment sign, it adds it to a arrayList
+							case LESSOREQUAL:
+								if (value.length() != 0) {
+									tokenList.add(new Token(Token.state.NUMBER,value));
+									tokenList.add(new Token(Token.state.LESSOREQUAL,"<="));
+									value = "";
+								} else {
+									tokenList.add(new Token(Token.state.LESSOREQUAL,"<="));
+								}
+								break;
+							
+							// if the current character is an assignment sign, it adds it to a arrayList
+							case NOTEQUAL:
+								if (value.length() != 0) {
+									tokenList.add(new Token(Token.state.NUMBER,value));
+									tokenList.add(new Token(Token.state.NOTEQUAL,"<>"));
+									value = "";
+								} else {
+									tokenList.add(new Token(Token.state.NOTEQUAL,"<>"));
+								}
+								break;
 						}
 					}
 				} else {
@@ -540,7 +614,24 @@ public class Lexer {
 		// If the number of left parentheses is not equal to the number
 		// of right parenthesis, this throws an exception
 		if (lparenNum != rparenNum) {
-			throw new Exception("Mising one or more left or right parentheses");
+			throw new Exception("Missing one or more left or right parentheses");
+		}
+
+		// Removes indent/dedent tokens created by comments if the line is empty besides indents and comments
+		if (tokenList.size() == 1) {
+			return tokenList;
+		} else if (tokenList.get(tokenList.size()-2).getState().equals(Token.state.INDENT)) {
+			while (tokenList.get(tokenList.size()-2).getState().equals(Token.state.INDENT)) {
+				tokenList.remove(tokenList.size()-2);
+				lastIdentationLevel--;
+				if (tokenList.size() == 1) break;
+			}
+		} else if (tokenList.get(tokenList.size()-2).getState().equals(Token.state.DEDENT)) {
+			while (tokenList.get(tokenList.size()-2).getState().equals(Token.state.DEDENT)) {
+				tokenList.remove(tokenList.size()-2);
+				lastIdentationLevel++;
+				if (tokenList.size() == 1) break;
+			}
 		}
 		return tokenList;
 	}
