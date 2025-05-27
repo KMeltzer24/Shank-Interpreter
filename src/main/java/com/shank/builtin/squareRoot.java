@@ -55,7 +55,7 @@ public class squareRoot extends BuiltInFunctionNode {
 			if (this.dataTypeList.get(1) instanceof FloatDataType) {
 				try {
 					this.dataTypeList.set(1, new FloatDataType((float)Math.sqrt(Float.parseFloat(this.dataTypeList.get(0).toString()))));
-				} catch (Exception E) {
+				} catch (NumberFormatException E) {
 					throw new Exception ("Cannot take squareRoot");
 				}
 			} else {
