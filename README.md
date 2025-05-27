@@ -1,11 +1,15 @@
 # Shank Interpreter
 
+A Java-based interpreter for the Shank programming language that implements a complete lexer, parser, and interpreter with support for various data types, control structures, and built-in functions.
 
-A Java-based interpreter for the Shank programming language, implementing a complete lexer, parser, and interpreter with support for various data types, control structures, and built-in functions.
+## Getting Started
 
+1. Ensure you have JDK 17+ installed
+2. Clone this repository
+3. Navigate to the project directory
+4. Follow the Building and Running section below
 
 ## Project Structure
-
 
 ```
 Shank-Interpreter/
@@ -34,15 +38,12 @@ Shank-Interpreter/
 │   │               └── nodes/          # AST node implementations
 │   └── test/
 │       └── resources/      # Test files and sample programs
-│           └── testfile1.txt
 ├── docs/
 │   └── Shank Definition.pdf   # Language specification
 └── .gitignore
 ```
 
-
-## Key Features
-
+## Features
 
 1. **Language Features**
    - Multiple data types (Integer, Float, Boolean, String, Char)
@@ -50,7 +51,6 @@ Shank-Interpreter/
    - Function definitions and calls
    - Variable declarations and assignments
    - Built-in functions
-
 
 2. **Built-in Functions**
    - `read` - Input operations
@@ -63,7 +63,6 @@ Shank-Interpreter/
    - `integerToReal` - Integer to real number conversion
    - `realToInteger` - Real number to integer conversion
 
-
 3. **Implementation Components**
    - Lexical analysis
    - Syntax parsing
@@ -71,27 +70,21 @@ Shank-Interpreter/
    - Abstract Syntax Tree (AST)
    - Runtime interpretation
 
-
 ## Building and Running
-
 
 1. Compile the project:
    ```bash
    javac -d bin src/main/java/com/shank/**/*.java
    ```
 
-
 2. Run the interpreter:
    ```bash
    java -cp bin com.shank.interpreter.Shank src/test/resources/testfile1.txt
    ```
 
-
 ## Example Usage
 
-
 The project includes test files and sample programs demonstrating language features:
-
 
 ```shank
 function main()
@@ -106,11 +99,8 @@ function main()
     end
 ```
 
-
 See `src/test/resources/testfile1.txt` for more examples of language features and built-in functions.
 
-
 ## Documentation
-
 
 For detailed language specifications and syntax rules, refer to the included `docs/Shank Definition.pdf` document.
